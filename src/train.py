@@ -434,7 +434,7 @@ def f1_loss(y_true: torch.Tensor, y_pred: torch.Tensor, is_training=False, thres
         labels = np.argwhere(events).reshape(-1).tolist()
 
         if len(labels) == 0:
-            labels = ["nocall"]
+            label_string = "nocall"
         else:
             labels_str_list = list(map(lambda x: INV_BIRD_CODE[x], labels))
             label_string = " ".join(labels_str_list)
