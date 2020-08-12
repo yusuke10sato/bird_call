@@ -24,12 +24,12 @@ dataset:
     aug:
       noise: True
       noise_prob: 0.5
-      shifting_time: True
-      shifting_time_prob: 0.5
-      speed: True
-      speed_prob: 0.5
-      pitch: True
-      pitch_prob: 0.5
+      # shifting_time: True
+      # shifting_time_prob: 0.5
+      # speed: True
+      # speed_prob: 0.5
+      # pitch: True
+      # pitch_prob: 0.5
 
 
 split:
