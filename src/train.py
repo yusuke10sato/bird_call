@@ -192,7 +192,8 @@ class SpectrogramDataset(data.Dataset):
     def __init__(
         self,
         file_list: tp.List[tp.List[str]], bird_code: tp.Dict, img_size=224,
-        waveform_transforms=None, spectrogram_transforms=None, melspectrogram_parameters={}
+        waveform_transforms=None, spectrogram_transforms=None, melspectrogram_parameters={},
+        clip_aroud_peak=False
         ):
         self.file_list = file_list  # list of list: [file_path, ebird_code]
         self.bird_code = bird_code
@@ -200,6 +201,7 @@ class SpectrogramDataset(data.Dataset):
         self.waveform_transforms = waveform_transforms
         self.spectrogram_transforms = spectrogram_transforms
         self.melspectrogram_parameters = melspectrogram_parameters
+        self.clip_aroud_peak = clip_aroud_peak
 
     def __len__(self):
         return len(self.file_list)
@@ -208,6 +210,9 @@ class SpectrogramDataset(data.Dataset):
         wav_path, ebird_code = self.file_list[idx]
 
         y, sr = sf.read(wav_path)
+
+        if self.clip_aroud_peak:
+            y = exract_peak_near(y, sr)
 
         if self.waveform_transforms:
             y = self.waveform_transforms(y)
@@ -329,7 +334,7 @@ def set_extensions(
         ppe_extensions.PlotReport(['lr',], 'epoch', filename='lr.png'),
         ppe_extensions.PrintReport([
             'epoch', 'iteration', 'lr', 'train/loss', 'val/loss', "elapsed_time"]),
-#         ppe_extensions.ProgressBar(update_interval=100),
+        ppe_extensions.ProgressBar(update_interval=10),
 
         # # evaluation
         (
@@ -356,6 +361,25 @@ def set_extensions(
             manager.extend(ext)
         
     return manager
+
+
+def exract_peak_near(x, sr):
+    i = np.argmax(x)
+    if len(x) < sr * 5:
+        start_index = 0
+        end_index = len(x) - 1
+    # スタート地点が0より前
+    elif i - sr * 2.5 < 0:
+        start_index = 0
+        end_index = int(sr*5)
+    # end_indexがlen_xより大きい
+    elif i + sr*2.5 >= len(x):
+        start_index = int(len(x) - sr*5 - 1)
+        end_index = int(len(x) - 1)
+    else:
+        start_index = int(i - sr * 2.5)
+        end_index = int(i + sr * 2.5)
+    return x[start_index:end_index]
 
 
 if __name__ == '__main__':
