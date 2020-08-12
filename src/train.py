@@ -33,6 +33,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 
+from aug import noise, shifting_time, speed, pitch
 
 def set_seed(seed: int = 42):
     random.seed(seed)
@@ -192,7 +193,8 @@ class SpectrogramDataset(data.Dataset):
     def __init__(
         self,
         file_list: tp.List[tp.List[str]], bird_code: tp.Dict, img_size=224,
-        waveform_transforms=None, spectrogram_transforms=None, melspectrogram_parameters={}
+        waveform_transforms=None, spectrogram_transforms=None, melspectrogram_parameters={},
+        aug={}
         ):
         self.file_list = file_list  # list of list: [file_path, ebird_code]
         self.bird_code = bird_code
@@ -200,6 +202,7 @@ class SpectrogramDataset(data.Dataset):
         self.waveform_transforms = waveform_transforms
         self.spectrogram_transforms = spectrogram_transforms
         self.melspectrogram_parameters = melspectrogram_parameters
+        self.aug = aug
 
     def __len__(self):
         return len(self.file_list)
@@ -208,6 +211,24 @@ class SpectrogramDataset(data.Dataset):
         wav_path, ebird_code = self.file_list[idx]
 
         y, sr = sf.read(wav_path)
+
+        if len(self.aug) > 0:
+            if self.aug.get('noise', False):
+                prob = random.random()
+                if self.aug['noise_prob'] >= prob:
+                    y = noise(y, 0.02)
+            if self.aug.get('shifting_time', False):
+                prob = random.random()
+                if self.aug['shifting_time_prob'] >= prob:
+                    y = shifting_time(y, sr, 2, 'right')
+            if self.aug.get('speed', False):
+                prob = random.random()
+                if self.aug['speed_prob'] >= prob:
+                    y = shifting_time(y, sr, 2, 'right')
+            if self.aug.get('pitch', False):
+                prob = random.random()
+                if self.aug['pitch_prob'] >= prob:
+                    y = pitch(y, sr, 2)
 
         if self.waveform_transforms:
             y = self.waveform_transforms(y)
@@ -329,7 +350,7 @@ def set_extensions(
         ppe_extensions.PlotReport(['lr',], 'epoch', filename='lr.png'),
         ppe_extensions.PrintReport([
             'epoch', 'iteration', 'lr', 'train/loss', 'val/loss', "elapsed_time"]),
-#         ppe_extensions.ProgressBar(update_interval=100),
+        ppe_extensions.ProgressBar(update_interval=5),
 
         # # evaluation
         (
