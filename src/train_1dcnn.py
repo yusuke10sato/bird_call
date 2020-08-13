@@ -170,7 +170,7 @@ def train(config_path, short_mode):
 
 
 
-PERIOD = 5
+PERIOD = 2
 def mono_to_color(
     X: np.ndarray, mean=None, std=None,
     norm_max=None, norm_min=None, eps=1e-6
@@ -240,6 +240,7 @@ class SpectrogramDataset(data.Dataset):
         wav_path, ebird_code = self.file_list[idx]
 
         y, sr = sf.read(wav_path)
+        y = exract_peak_near(y, sr)
 
         if self.waveform_transforms:
             y = self.waveform_transforms(y)
@@ -385,6 +386,24 @@ def set_extensions(
             manager.extend(ext)
         
     return manager
+
+def exract_peak_near(x, sr):
+    i = np.argmax(x)
+    if len(x) < sr * 2:
+        start_index = 0
+        end_index = len(x) - 1
+    # スタート地点が0より前
+    elif i - sr * 1 < 0:
+        start_index = 0
+        end_index = int(sr*2)
+    # end_indexがlen_xより大きい
+    elif i + sr*1 >= len(x):
+        start_index = int(len(x) - sr*2 - 1)
+        end_index = int(len(x) - 1)
+    else:
+        start_index = int(i - sr * 1)
+        end_index = int(i + sr * 1)
+    return x[start_index:end_index]
 
 
 if __name__ == '__main__':

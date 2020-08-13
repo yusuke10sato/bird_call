@@ -9,7 +9,7 @@ globals:
   seed: 1213
   device: cuda
   num_epochs: 50
-  output_dir: ../output/1dcnn/test/cv_0
+  output_dir: ../output/1dcnn_2s/cv_0
   use_fold: 0
   target_sr: 32000
 
