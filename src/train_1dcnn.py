@@ -259,14 +259,16 @@ class SpectrogramDataset(data.Dataset):
                 y = y.astype(np.float32)
             y = np.stack(
                 [
+                    y
                     # standardize(y),
-                    standardize(scipy.signal.savgol_filter(y, 1501, 2, deriv=0)).astype(np.float32),
+                    # standardize(scipy.signal.savgol_filter(y, 1501, 2, deriv=0)).astype(np.float32),
                     # standardize(scipy.signal.savgol_filter(y, 1501, 2, deriv=1)).astype(np.float32),
                     # standardize(scipy.signal.savgol_filter(y, 501, 2, deriv=2)).astype(np.float32),
                 ])
 
         labels = np.zeros(len(self.bird_code), dtype="f")
         labels[self.bird_code[ebird_code]] = 1
+        print(y.shape)
 
         return y, labels
 
@@ -314,13 +316,18 @@ def train_loop(
     while not manager.stop_trigger:
         model.train()
         for batch_idx, (data, target) in enumerate(train_loader):
+            print(batch_idx)
             with manager.run_iteration():
                 data, target = data.to(device), target.to(device)
+                print('pred...')
                 optimizer.zero_grad()
                 output = model(data)
+                print('loss...')
                 loss = loss_func(output, target)
                 ppe.reporting.report({'train/loss': loss.item()})
+                print('backword...')
                 loss.backward()
+                print('opt...')
                 optimizer.step()
         scheduler.step()  # <- call at the end of each epoch
 

@@ -31,7 +31,7 @@ split:
 
 loader:
   train:
-    batch_size: 10
+    batch_size: 5
     shuffle: True
     pin_memory: True
     drop_last: True
@@ -54,7 +54,7 @@ loss:
 optimizer:
   name: Adam
   params:
-    lr: 0.001
+    lr: 0.1
 
 scheduler:
   name: CosineAnnealingLR

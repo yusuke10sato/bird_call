@@ -68,4 +68,5 @@ class CnnModel(nn.Module):
         #     outs.append(self.cont(x_cont))
         out = torch.cat(outs, axis=1)
         out = self.last_linear(out)
+        print(out.shape)
         return out
