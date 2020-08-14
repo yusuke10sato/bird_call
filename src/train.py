@@ -1,6 +1,9 @@
 """
+引数
+    --short_mode: 実験用に先頭100データのみ使用
+    --use_add_data: 追加データを使用
 usage:
-     python3 train.py settings/test_baseline_1epoch.yaml
+     python3 train.py settings/test_baseline_1epoch.yaml  --short_mode --use_add_data
 """
 
 import gc
@@ -113,7 +116,8 @@ def timer(name: str) -> None:
 @click.command()
 @click.argument('config_path', type=click.Path(exists=True))
 @click.option('--short_mode', is_flag=True)
-def train(config_path, short_mode):
+@click.option('--use_add_data', is_flag=True)
+def train(config_path, short_mode, use_add_data):
     f = open(config_path, 'r')
     settings = yaml.safe_load(f)
 
@@ -149,6 +153,26 @@ def train(config_path, short_mode):
     del tmp_list
     train_all = pd.merge(
         train, train_wav_path_exist, on=["ebird_code", "resampled_filename"], how="inner")
+
+    if use_add_data:
+        RAW_DATA_ADD = INPUT_ROOT / settings['RAW_DATA_ADD']
+        TRAIN_AUDIO_ADD_DIR = RAW_DATA_ADD / settings['TRAIN_AUDIO_ADD_DIR']
+        TRAIN_RESAMPLED_AUDIO_ADD_DIRS = RAW_DATA_ADD / settings['TRAIN_RESAMPLED_AUDIO_ADD_DIRS']
+        train_add = pd.read_csv(TRAIN_RESAMPLED_AUDIO_ADD_DIRS / "train_add_mod.csv")
+
+        tmp_list = []
+        for ebird_d in TRAIN_RESAMPLED_AUDIO_ADD_DIRS.iterdir():
+            if ebird_d.is_file():
+                continue
+            for wav_f in ebird_d.iterdir():
+                tmp_list.append([ebird_d.name, wav_f.name, wav_f.as_posix()])
+        train_wav_path_exist = pd.DataFrame(
+            tmp_list, columns=["ebird_code", "resampled_filename", "file_path"])
+        del tmp_list
+        train_all_add = pd.merge(
+            train_add, train_wav_path_exist, on=["ebird_code", "resampled_filename"], how="inner")
+        
+        train_all = pd.concat([train_all, train_all_add], axis=0).reset_index(drop=True)
 
     skf = StratifiedKFold(**settings["split"]["params"])
     train_all["fold"] = -1
