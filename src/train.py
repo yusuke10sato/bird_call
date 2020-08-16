@@ -395,7 +395,7 @@ def set_extensions(
         ppe_extensions.PrintReport([
             'epoch', 'iteration', 'lr', 'train/loss', 'val/loss', "elapsed_time", "val/f1_score"]),
         ppe_extensions.PlotReport(["val/f1_score"], 'epoch', filename='val_f1_score.png'),
-#         ppe_extensions.ProgressBar(update_interval=100),
+        ppe_extensions.ProgressBar(update_interval=10),
 
         # # evaluation
         (
