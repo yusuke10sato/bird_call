@@ -34,6 +34,9 @@ import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 
+
+from aug import noise, shifting_time, speed, pitch
+
 BIRD_CODE = {
     'aldfly': 0, 'ameavo': 1, 'amebit': 2, 'amecro': 3, 'amegfi': 4,
     'amekes': 5, 'amepip': 6, 'amered': 7, 'amerob': 8, 'amewig': 9,
@@ -269,15 +272,18 @@ def mono_to_color(
 class SpectrogramDataset(data.Dataset):
     def __init__(
         self,
-        file_list: tp.List[tp.List[str]], bird_code: tp.Dict, img_size=224,
-        waveform_transforms=None, spectrogram_transforms=None, melspectrogram_parameters={}
+        file_list: tp.List[tp.List[str]], bird_code: tp.Dict, train=True, img_size=224,
+        waveform_transforms=None, spectrogram_transforms=None, melspectrogram_parameters={},
+        aug={}
         ):
         self.file_list = file_list  # list of list: [file_path, ebird_code]
         self.bird_code = bird_code
+        self.train = train
         self.img_size = img_size
         self.waveform_transforms = waveform_transforms
         self.spectrogram_transforms = spectrogram_transforms
         self.melspectrogram_parameters = melspectrogram_parameters
+        self.aug = aug
 
     def __len__(self):
         return len(self.file_list)
@@ -286,6 +292,24 @@ class SpectrogramDataset(data.Dataset):
         wav_path, ebird_code = self.file_list[idx]
 
         y, sr = sf.read(wav_path)
+        if self.train:
+            if len(self.aug) > 0:
+                if self.aug.get('noise', False):
+                    prob = random.random()
+                    if self.aug['noise_prob'] >= prob:
+                        y = noise(y, 0.02)
+                if self.aug.get('shifting_time', False):
+                    prob = random.random()
+                    if self.aug['shifting_time_prob'] >= prob:
+                        y = shifting_time(y, sr, 2, 'right')
+                if self.aug.get('speed', False):
+                    prob = random.random()
+                    if self.aug['speed_prob'] >= prob:
+                        y = shifting_time(y, sr, 2, 'right')
+                if self.aug.get('pitch', False):
+                    prob = random.random()
+                    if self.aug['pitch_prob'] >= prob:
+                        y = pitch(y, sr, 2)
 
         if self.waveform_transforms:
             y = self.waveform_transforms(y)
@@ -329,8 +353,8 @@ def get_loaders_for_training(
     train_file_list: tp.List[str], val_file_list: tp.List[str], bird_code: tp.Dict
     ):
     # # make dataset
-    train_dataset = SpectrogramDataset(train_file_list, bird_code, **args_dataset)
-    val_dataset = SpectrogramDataset(val_file_list, bird_code, **args_dataset)
+    train_dataset = SpectrogramDataset(train_file_list, bird_code, train=True, **args_dataset)
+    val_dataset = SpectrogramDataset(val_file_list, bird_code, train=False, **args_dataset)
     # # make dataloader
     train_loader = data.DataLoader(train_dataset, **args_loader["train"])
     val_loader = data.DataLoader(val_dataset, **args_loader["val"])
