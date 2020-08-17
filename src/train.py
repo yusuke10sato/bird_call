@@ -219,6 +219,19 @@ def train(config_path, short_mode):
     state_dict = torch.load(output_dir / 'best_model.pth')
     print(m.load_state_dict(state_dict))
 
+    # f1ベスト書き出し
+    best_epoch = log["val/f1_score"].idxmax() + 1
+    print('... best epoch')
+    print(log.iloc[[best_epoch - 1],])
+
+    shutil.copy(output_dir / "snapshot_epoch_f1_{}.pth".format(best_epoch), output_dir / "f1_best_model.pth")
+
+    m = get_model({
+    'name': settings["model"]["name"],
+    'params': {'pretrained': False, 'n_classes': 264}})
+    state_dict = torch.load(output_dir / 'best_model.pth')
+    print(m.load_state_dict(state_dict))
+
     print('... all well done')
     end_time = time.time()
     print('... elapsed time : {} minutes'.format((end_time - start_time)/60))
@@ -411,6 +424,11 @@ def set_extensions(
             ppe_extensions.snapshot(
                 target=model, filename="snapshot_epoch_{.updater.epoch}.pth"),
             ppe.training.triggers.MinValueTrigger(key="val/loss", trigger=(1, 'epoch'))
+        ),
+        (
+            ppe_extensions.snapshot(
+                target=model, filename="snapshot_epoch_f1_{.updater.epoch}.pth"),
+            ppe.training.triggers.MaxValueTrigger(key="val/f1_score", trigger=(1, 'epoch'))
         ),
     ]
            
