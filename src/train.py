@@ -211,12 +211,12 @@ def train(config_path, short_mode):
     print('... best epoch')
     print(log.iloc[[best_epoch - 1],])
 
-    shutil.copy(output_dir / "snapshot_epoch_{}.pth".format(best_epoch), output_dir / "best_model.pth")
+    shutil.copy(output_dir / "snapshot_epoch_{}.pth".format(best_epoch), output_dir / 'best_model_{}.pth'.format(best_epoch))
 
     m = get_model({
     'name': settings["model"]["name"],
     'params': {'pretrained': False, 'n_classes': 264}})
-    state_dict = torch.load(output_dir / 'best_model.pth')
+    state_dict = torch.load(output_dir / 'best_model_{}.pth'.format(best_epoch))
     print(m.load_state_dict(state_dict))
 
     # f1ベスト書き出し
@@ -224,12 +224,12 @@ def train(config_path, short_mode):
     print('... best epoch')
     print(log.iloc[[best_epoch - 1],])
 
-    shutil.copy(output_dir / "snapshot_epoch_f1_{}.pth".format(best_epoch), output_dir / "f1_best_model.pth")
+    shutil.copy(output_dir / "snapshot_epoch_f1_{}.pth".format(best_epoch), output_dir / 'f1_best_model_{}.pth'.format(best_epoch))
 
     m = get_model({
     'name': settings["model"]["name"],
     'params': {'pretrained': False, 'n_classes': 264}})
-    state_dict = torch.load(output_dir / 'best_model.pth')
+    state_dict = torch.load(output_dir / 'f1_best_model_{}.pth'.format(best_epoch))
     print(m.load_state_dict(state_dict))
 
     print('... all well done')
