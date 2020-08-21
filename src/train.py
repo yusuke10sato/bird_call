@@ -327,8 +327,19 @@ class SpectrogramDataset(data.Dataset):
             else:
                 y = y.astype(np.float32)
 
-        melspec = librosa.feature.melspectrogram(y, sr=sr, **self.melspectrogram_parameters)
-        melspec = librosa.power_to_db(melspec).astype(np.float32)
+        spec_mode = self.melspectrogram_parameters['mode']
+        assert spec_mode == 'mel' or spec_mode =='linear'
+        if spec_mode == 'mel':
+            melspec = librosa.feature.melspectrogram(y, sr=sr, **self.melspectrogram_parameters)
+            melspec = librosa.power_to_db(melspec).astype(np.float32)
+        else:
+            def rebin(a, shape):
+                sh = shape[0],a.shape[0]//shape[0],shape[1],a.shape[1]//shape[1]
+                return a.reshape(sh).mean(-1).mean(1)
+            melspec = librosa.core.stft(y)
+            n_mels = self.melspectrogram_parameters['n_mels']
+            melspec = librosa.power_to_db(melspec).astype(np.float32)
+            melspec = rebin(melspec, (n_mels, melspec.shape[1]))
 
         if self.spectrogram_transforms:
             melspec = self.spectrogram_transforms(melspec)

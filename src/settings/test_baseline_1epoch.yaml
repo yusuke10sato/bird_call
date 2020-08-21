@@ -21,6 +21,7 @@ dataset:
       n_mels: 128
       fmin: 20
       fmax: 16000
+      mode: 'linear' # choose 'linear' or 'mel'
     
 split:
   name: StratifiedKFold
