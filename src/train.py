@@ -34,6 +34,7 @@ import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
 
+from scipy.signal import butter, lfilter
 
 from aug import noise, shifting_time, speed, pitch
 
@@ -116,7 +117,8 @@ def timer(name: str) -> None:
 @click.command()
 @click.argument('config_path', type=click.Path(exists=True))
 @click.option('--short_mode', is_flag=True)
-def train(config_path, short_mode):
+@click.option('--butter', is_flag=True)
+def train(config_path, short_mode, butter):
     f = open(config_path, 'r')
     settings = yaml.safe_load(f)
 
@@ -173,7 +175,7 @@ def train(config_path, short_mode):
     # get loader
     train_loader, val_loader = get_loaders_for_training(
         settings["dataset"]["params"], settings["loader"], 
-        train_file_list, val_file_list, BIRD_CODE)
+        train_file_list, val_file_list, BIRD_CODE, butter)
     # get model
     model = get_model(settings["model"])
     model = model.to(device)
@@ -269,12 +271,24 @@ def mono_to_color(
         V = np.zeros_like(Xstd, dtype=np.uint8)
     return V
 
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='band')
+    return b, a
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
+
 class SpectrogramDataset(data.Dataset):
     def __init__(
         self,
-        file_list: tp.List[tp.List[str]], bird_code: tp.Dict, train=True, img_size=224,
+        file_list: tp.List[tp.List[str]], bird_code: tp.Dict, train=True, butter=False, img_size=224,
         waveform_transforms=None, spectrogram_transforms=None, melspectrogram_parameters={},
-        aug={}
+        aug={}, butter_params={}
         ):
         self.file_list = file_list  # list of list: [file_path, ebird_code]
         self.bird_code = bird_code
@@ -284,6 +298,7 @@ class SpectrogramDataset(data.Dataset):
         self.spectrogram_transforms = spectrogram_transforms
         self.melspectrogram_parameters = melspectrogram_parameters
         self.aug = aug
+        self.butter_params = butter_params
 
     def __len__(self):
         return len(self.file_list)
@@ -292,6 +307,9 @@ class SpectrogramDataset(data.Dataset):
         wav_path, ebird_code = self.file_list[idx]
 
         y, sr = sf.read(wav_path)
+        if butter:
+            y = butter_bandpass_filter(y, self.butter_params['lowcut'], self.butter_params['hightcut'],
+                                       fs=sr, order=5)
         if self.train:
             if len(self.aug) > 0:
                 if self.aug.get('noise', False):
@@ -350,11 +368,11 @@ class SpectrogramDataset(data.Dataset):
 
 def get_loaders_for_training(
     args_dataset: tp.Dict, args_loader: tp.Dict,
-    train_file_list: tp.List[str], val_file_list: tp.List[str], bird_code: tp.Dict
+    train_file_list: tp.List[str], val_file_list: tp.List[str], bird_code: tp.Dict, butter=butter
     ):
     # # make dataset
-    train_dataset = SpectrogramDataset(train_file_list, bird_code, train=True, **args_dataset)
-    val_dataset = SpectrogramDataset(val_file_list, bird_code, train=False, **args_dataset)
+    train_dataset = SpectrogramDataset(train_file_list, bird_code, train=True, butter=butter, **args_dataset)
+    val_dataset = SpectrogramDataset(val_file_list, bird_code, train=False, butter=butter, **args_dataset)
     # # make dataloader
     train_loader = data.DataLoader(train_dataset, **args_loader["train"])
     val_loader = data.DataLoader(val_dataset, **args_loader["val"])
