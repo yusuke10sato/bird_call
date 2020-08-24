@@ -15,6 +15,8 @@ from pathlib import Path
 from typing import List
 
 import numpy as np
+import scipy
+from scipy.signal import butter, lfilter
 import pytorch_pfn_extras as ppe
 import resnest.torch as resnest_torch
 import soundfile as sf
@@ -36,6 +38,8 @@ from sklearn.model_selection import StratifiedKFold
 
 
 from aug import noise, shifting_time, speed, pitch
+
+warnings.filterwarnings('ignore', category=FutureWarning)
 
 BIRD_CODE = {
     'aldfly': 0, 'ameavo': 1, 'amebit': 2, 'amecro': 3, 'amegfi': 4,
@@ -269,6 +273,52 @@ def mono_to_color(
         V = np.zeros_like(Xstd, dtype=np.uint8)
     return V
 
+# 各melspectrogramをチャネル方向に積む関数
+def stack_filter(
+    X: tp.List[np.ndarray], mean=None, std=None,
+    norm_max=None, norm_min=None, eps=1e-6
+    ):
+    # Stack X as [X,X,X]
+    X = np.stack(X, axis=-1)
+
+    # Standardize
+    mean = mean or X.mean(axis=(0, 1), keepdims=True)
+    X = X - mean
+    std = std or X.std(axis=(0, 1), keepdims=True)
+    Xstd = X / (std + eps)
+    
+    _min, _max = Xstd.min(axis=(0, 1), keepdims=True), Xstd.max(axis=(0, 1), keepdims=True)
+    norm_max = norm_max or _max
+    norm_min = norm_min or _min
+    if (_max - _min).all() > eps:
+        # Normalize to [0, 255]
+        V = Xstd
+        # V[V < norm_min] = norm_min
+        # V[V > norm_max] = norm_max
+        V = 255 * (V - norm_min) / (norm_max - norm_min)
+        V = V.astype(np.uint8)
+    else:
+        # Just zero
+        V = np.zeros_like(Xstd, dtype=np.uint8)
+    return V
+
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='band')
+    return b, a
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = lfilter(b, a, data)
+    return y
+
+def melspectrogram(self, y, sr):
+    melspec = librosa.feature.melspectrogram(y, sr=sr, **self.melspectrogram_parameters)
+    melspec = librosa.power_to_db(melspec).astype(np.float32)
+    return melspec
+
 class SpectrogramDataset(data.Dataset):
     def __init__(
         self,
@@ -326,16 +376,24 @@ class SpectrogramDataset(data.Dataset):
                 y = y[start:start + effective_length].astype(np.float32)
             else:
                 y = y.astype(np.float32)
+        
+        y_butter = butter_bandpass_filter(y, lowcut=200, highcut=15900, fs=sr, order=5)  # bandpass filter
+        y_savgol = scipy.signal.savgol_filter(y, 1501, 2, deriv=1)  # savgol filter
 
-        melspec = librosa.feature.melspectrogram(y, sr=sr, **self.melspectrogram_parameters)
-        melspec = librosa.power_to_db(melspec).astype(np.float32)
+        # melspec = librosa.feature.melspectrogram(y, sr=sr, **self.melspectrogram_parameters)
+        # melspec = librosa.power_to_db(melspec).astype(np.float32)
+
+        melspec = melspectrogram(self, y, sr)
+        butter_melspec = melspectrogram(self, y_butter, sr)
+        savgol_melspec = melspectrogram(self, y_savgol, sr)
 
         if self.spectrogram_transforms:
             melspec = self.spectrogram_transforms(melspec)
         else:
             pass
 
-        image = mono_to_color(melspec)
+        # image = mono_to_color(melspec)
+        image = stack_filter([melspec, butter_melspec, savgol_melspec])
         height, width, _ = image.shape
         image = cv2.resize(image, (int(width * self.img_size / height), self.img_size))
         image = np.moveaxis(image, 2, 0)
