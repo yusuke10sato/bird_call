@@ -481,7 +481,7 @@ def f1_loss(y_true: torch.Tensor, y_pred: torch.Tensor, is_training=False, thres
         else:
             labels_str_list = list(map(lambda x: INV_BIRD_CODE[x], labels))
             if(len(labels) > 1 and 'nocall' in labels_str_list):
-                labels.remove('nocall')
+                labels_str_list.remove('nocall')
 
             label_string = " ".join(labels_str_list)
             
