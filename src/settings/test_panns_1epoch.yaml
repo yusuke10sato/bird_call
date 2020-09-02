@@ -9,7 +9,7 @@ globals:
   seed: 1213
   device: cuda
   num_epochs: 1
-  output_dir: ../output/test_baseline_1epoch/
+  output_dir: ../output/test_panns_1epoch/
   use_fold: 0
   target_sr: 32000
 
@@ -18,9 +18,12 @@ dataset:
   params:
     img_size: 224
     melspectrogram_parameters:
-      n_mels: 128
+      n_mels: 64
       fmin: 20
       fmax: 16000
+      mode: 'linear'
+      window_size: 1024
+      hop_size: 320
     
 split:
   name: StratifiedKFold
@@ -45,7 +48,7 @@ model:
   name: resnest50_fast_1s1x64d
   params:
     pretrained: True
-    n_classes: 264
+    n_classes: 264 # 264
 
 loss:
   name: BCEWithLogitsLoss
