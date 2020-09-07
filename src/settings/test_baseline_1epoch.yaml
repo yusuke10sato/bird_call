@@ -18,8 +18,9 @@ dataset:
   params:
     img_size: 224
     melspectrogram_parameters:
+      n_fft: 2048
       n_mels: 128
-      fmin: 20
+      fmin: 200
       fmax: 16000
     
 split:
