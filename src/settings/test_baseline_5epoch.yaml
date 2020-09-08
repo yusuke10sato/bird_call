@@ -8,8 +8,8 @@ TEST_AUDIO_DIR : "test_audio"
 globals:
   seed: 1213
   device: cuda
-  num_epochs: 1
-  output_dir: ../output/test_baseline_1epoch/
+  num_epochs: 5
+  output_dir: ../output/test_baseline_5epoch/
   use_fold: 0
   target_sr: 32000
 

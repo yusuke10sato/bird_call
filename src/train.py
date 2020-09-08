@@ -290,7 +290,7 @@ class SpectrogramDataset(data.Dataset):
     def __len__(self):
         return len(self.file_list)
 
-    def mel(sr, n_fft, n_mels=128, fmin=0.0, fmax=None, htk=False,
+    def mel(self, sr, n_fft, n_mels=128, fmin=0.0, fmax=None, htk=False,
             norm=1):
         """Create a Filterbank matrix to combine FFT bins into Mel-frequency bins
 
@@ -571,13 +571,12 @@ class SpectrogramDataset(data.Dataset):
                 y = y.astype(np.float32)
 
         n_fft = self.melspectrogram_parameters["n_fft"]
-        if self.filterbank: pass
-        else: 
-            self.filterbank = self.mel(sr, 
-                n_fft=n_fft, 
-                n_mels=self.melspectrogram_parameters["n_mels"], 
-                fmin=self.melspectrogram_parameters["fmin"],
-                fmax=self.melspectrogram_parameters["fmax"])
+        if self.filterbank is not None: pass
+        else:
+            self.filterbank = self.mel(sr, n_fft,
+                self.melspectrogram_parameters["n_mels"], 
+                self.melspectrogram_parameters["fmin"],
+                self.melspectrogram_parameters["fmax"])
 
         power = 2.0
         S = np.abs(librosa.stft(y, n_fft=n_fft))**power
