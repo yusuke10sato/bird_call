@@ -91,7 +91,7 @@ BIRD_CODE = {
     'whcspa': 245, 'whfibi': 246, 'whtspa': 247, 'whtswi': 248, 'wilfly': 249,
     'wilsni1': 250, 'wiltur': 251, 'winwre3': 252, 'wlswar': 253, 'wooduc': 254,
     'wooscj2': 255, 'woothr': 256, 'y00475': 257, 'yebfly': 258, 'yebsap': 259,
-    'yehbla': 260, 'yelwar': 261, 'yerwar': 262, 'yetvir': 263
+    'yehbla': 260, 'yelwar': 261, 'yerwar': 262, 'yetvir': 263, "nocall": 264
 }
 INV_BIRD_CODE = {v: k for k, v in BIRD_CODE.items()}
 
@@ -219,7 +219,8 @@ def train(config_path, short_mode):
 
     m = get_model({
     'name': settings["model"]["name"],
-    'params': {'pretrained': False, 'n_classes': 264}})
+    #'params': {'pretrained': False, 'n_classes': 264}})
+    'params': {'pretrained': False, 'n_classes': 265}})
     state_dict = torch.load(output_dir / 'best_model.pth')
     print(m.load_state_dict(state_dict))
 
@@ -232,7 +233,8 @@ def train(config_path, short_mode):
 
     m = get_model({
     'name': settings["model"]["name"],
-    'params': {'pretrained': False, 'n_classes': 264}})
+    #'params': {'pretrained': False, 'n_classes': 264}})
+    'params': {'pretrained': False, 'n_classes': 265}})
     state_dict = torch.load(output_dir / 'best_model.pth')
     print(m.load_state_dict(state_dict))
 
@@ -556,7 +558,9 @@ class SpectrogramDataset(data.Dataset):
 
         if self.waveform_transforms:
             y = self.waveform_transforms(y)
+            y_mean = y.mean() # no peak, no call
         else:
+            y_mean = y.mean() # no peak, no call
             len_y = len(y)
             effective_length = sr * PERIOD
             if len_y < effective_length:
@@ -569,6 +573,11 @@ class SpectrogramDataset(data.Dataset):
                 y = y[start:start + effective_length].astype(np.float32)
             else:
                 y = y.astype(np.float32)
+
+        # peak がなければnocall
+        if y_mean * 7 > y.max():
+            ebird_code = 'nocall'
+
 
         n_fft = self.melspectrogram_parameters["n_fft"]
         if self.filterbank is not None: pass
@@ -636,6 +645,7 @@ def train_loop(
     while not manager.stop_trigger:
         model.train()
         for batch_idx, (data, target) in enumerate(train_loader):
+            data, target = mixup_data(data, target, alpha=1, use_cuda=True)
             with manager.run_iteration():
                 data, target = data.to(device), target.to(device)
                 optimizer.zero_grad()
@@ -821,6 +831,23 @@ def micro_f1_similarity(
     f1_similarity = 2 * true_pos / (2 * true_pos + false_neg + false_pos)
 
     return f1_similarity
+
+def mixup_data(x, y, alpha=1.0, use_cuda=True):
+    '''Compute the mixup data. Return mixed inputs, pairs of targets, and lambda'''
+    if alpha > 0.:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1.
+    batch_size = x.size()[0]
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+#     lam = max(lam, 1 - lam)
+    mixed_x = lam * x + (1 - lam) * x[index,:]
+    mixed_y = lam * y + (1 - lam) * y[index]
+    return mixed_x, mixed_y
+
 
 if __name__ == '__main__':
     train()

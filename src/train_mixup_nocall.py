@@ -30,11 +30,9 @@ import audioread
 import click
 import cv2
 import librosa
-import librosa.core
 import pandas as pd
 from sklearn.metrics import f1_score
 from sklearn.model_selection import StratifiedKFold
-
 
 from aug import noise, shifting_time, speed, pitch
 
@@ -91,7 +89,7 @@ BIRD_CODE = {
     'whcspa': 245, 'whfibi': 246, 'whtspa': 247, 'whtswi': 248, 'wilfly': 249,
     'wilsni1': 250, 'wiltur': 251, 'winwre3': 252, 'wlswar': 253, 'wooduc': 254,
     'wooscj2': 255, 'woothr': 256, 'y00475': 257, 'yebfly': 258, 'yebsap': 259,
-    'yehbla': 260, 'yelwar': 261, 'yerwar': 262, 'yetvir': 263
+    'yehbla': 260, 'yelwar': 261, 'yerwar': 262, 'yetvir': 263, 'nocall': 264
 }
 INV_BIRD_CODE = {v: k for k, v in BIRD_CODE.items()}
 
@@ -219,21 +217,22 @@ def train(config_path, short_mode):
 
     m = get_model({
     'name': settings["model"]["name"],
-    'params': {'pretrained': False, 'n_classes': 264}})
+    'params': {'pretrained': False, 'n_classes': 265}})
     state_dict = torch.load(output_dir / 'best_model.pth')
     print(m.load_state_dict(state_dict))
+
 
     # f1ベスト書き出し
     best_epoch = log["val/f1_score"].idxmax() + 1
     print('... best epoch')
     print(log.iloc[[best_epoch - 1],])
 
-    shutil.copy(output_dir / "snapshot_epoch_f1_{}.pth".format(best_epoch), output_dir / "f1_best_model.pth")
+    shutil.copy(output_dir / "snapshot_epoch_f1_{}.pth".format(best_epoch), output_dir / 'f1_best_model_{}.pth'.format(best_epoch))
 
     m = get_model({
     'name': settings["model"]["name"],
-    'params': {'pretrained': False, 'n_classes': 264}})
-    state_dict = torch.load(output_dir / 'best_model.pth')
+    'params': {'pretrained': False, 'n_classes': 265}})
+    state_dict = torch.load(output_dir / 'f1_best_model_{}.pth'.format(best_epoch))
     print(m.load_state_dict(state_dict))
 
     print('... all well done')
@@ -285,251 +284,9 @@ class SpectrogramDataset(data.Dataset):
         self.spectrogram_transforms = spectrogram_transforms
         self.melspectrogram_parameters = melspectrogram_parameters
         self.aug = aug
-        self.filterbank = None
 
     def __len__(self):
         return len(self.file_list)
-
-    def mel(self, sr, n_fft, n_mels=128, fmin=0.0, fmax=None, htk=False,
-            norm=1):
-        """Create a Filterbank matrix to combine FFT bins into Mel-frequency bins
-
-        Parameters
-        ----------
-        sr        : number > 0 [scalar]
-            sampling rate of the incoming signal
-
-        n_fft     : int > 0 [scalar]
-            number of FFT components
-
-        n_mels    : int > 0 [scalar]
-            number of Mel bands to generate
-
-        fmin      : float >= 0 [scalar]
-            lowest frequency (in Hz)
-
-        fmax      : float >= 0 [scalar]
-            highest frequency (in Hz).
-            If `None`, use `fmax = sr / 2.0`
-
-        htk       : bool [scalar]
-            use HTK formula instead of Slaney
-
-        norm : {None, 1, np.inf} [scalar]
-            if 1, divide the triangular mel weights by the width of the mel band
-            (area normalization).  Otherwise, leave all the triangles aiming for
-            a peak value of 1.0
-
-        Returns
-        -------
-        M         : np.ndarray [shape=(n_mels, 1 + n_fft/2)]
-            Mel transform matrix
-
-        Notes
-        -----
-        This function caches at level 10.
-
-        Examples
-        --------
-        >>> melfb = librosa.filters.mel(22050, 2048)
-        >>> melfb
-        array([[ 0.   ,  0.016, ...,  0.   ,  0.   ],
-            [ 0.   ,  0.   , ...,  0.   ,  0.   ],
-            ...,
-            [ 0.   ,  0.   , ...,  0.   ,  0.   ],
-            [ 0.   ,  0.   , ...,  0.   ,  0.   ]])
-
-
-        Clip the maximum frequency to 8KHz
-
-        >>> librosa.filters.mel(22050, 2048, fmax=8000)
-        array([[ 0.  ,  0.02, ...,  0.  ,  0.  ],
-            [ 0.  ,  0.  , ...,  0.  ,  0.  ],
-            ...,
-            [ 0.  ,  0.  , ...,  0.  ,  0.  ],
-            [ 0.  ,  0.  , ...,  0.  ,  0.  ]])
-
-
-        >>> import matplotlib.pyplot as plt
-        >>> plt.figure()
-        >>> librosa.display.specshow(melfb, x_axis='linear')
-        >>> plt.ylabel('Mel filter')
-        >>> plt.title('Mel filter bank')
-        >>> plt.colorbar()
-        >>> plt.tight_layout()
-        """
-
-        if fmax is None:
-            fmax = float(sr) / 2
-
-        if norm is not None and norm != 1 and norm != np.inf:
-            raise ParameterError('Unsupported norm: {}'.format(repr(norm)))
-
-        # Initialize the weights
-        n_mels = int(n_mels)
-        weights = np.zeros((n_mels, int(1 + n_fft // 2)))
-
-        # Center freqs of each FFT bin
-        fftfreqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
-
-        # 'Center freqs' of mel bands - uniformly spaced between limits
-        mel_f = np.array([200,
-                200.65839880255413,
-                201.37750848432012,
-                201.51126380583162,
-                201.67386956899037,
-                201.87582543688856,
-                202.13345527203808,
-                202.47362290912503,
-                202.94395795945513,
-                203.63802229847101,
-                204.7696777583669,
-                206.9686321525935,
-                212.88885671471746,
-                217.43048869703566,
-                217.67573891228102,
-                217.99718059148606,
-                218.43718046012455,
-                219.07709875345563,
-                220.09657180388132,
-                221.99293137020203,
-                226.94388589196586,
-                232.62734674169212,
-                235.10231672457329,
-                236.44419592188694,
-                239.27104445621455,
-                247.84189145158842,
-                258.1332636574189,
-                266.45592538764413,
-                287.9890352180489,
-                310.53399991020956,
-                329.7280481648527,
-                365.2636543430171,
-                412.1971069913186,
-                474.9992071267056,
-                543.8012938633804,
-                613.9981630065175,
-                684.4309008264818,
-                746.926859193976,
-                824.9481206944652,
-                934.1647408605522,
-                1059.406578152521,
-                1191.4714986828917,
-                1315.3661976656404,
-                1417.0854269491579,
-                1511.4688454929535,
-                1612.80056993873,
-                1721.6428871330952,
-                1838.288761545141,
-                1955.3394189452179,
-                2064.968083010285,
-                2166.8084495171515,
-                2260.0916983488605,
-                2338.3314875237083,
-                2401.906399148228,
-                2463.7128966413247,
-                2524.8571234176743,
-                2580.0580920624607,
-                2628.9702036006215,
-                2682.628540587129,
-                2735.574322816629,
-                2782.2949980039793,
-                2823.2077006567883,
-                2863.515614399661,
-                2908.3053773334987,
-                2947.9254283746377,
-                2987.2898160362897,
-                3026.660057289936,
-                3066.3058926403455,
-                3110.9589651232495,
-                3150.8433299423505,
-                3190.7647125250114,
-                3235.4147868690166,
-                3275.3314141881165,
-                3315.610520650735,
-                3360.6813727382987,
-                3400.707128832307,
-                3440.631288594453,
-                3485.2582072693517,
-                3525.048226029132,
-                3565.061232929195,
-                3610.3530117659466,
-                3656.158234266066,
-                3702.626404589744,
-                3749.713173618707,
-                3797.136734159918,
-                3844.688148985763,
-                3892.179804142279,
-                3939.684061309631,
-                3992.7908662105892,
-                4046.0964639926615,
-                4094.048026768339,
-                4147.715225077025,
-                4201.803328840861,
-                4250.415130590165,
-                4304.400570488394,
-                4358.891311144112,
-                4413.626381238448,
-                4468.247903671312,
-                4523.200949785816,
-                4584.385109100807,
-                4646.338108408218,
-                4708.794686519528,
-                4771.600484347028,
-                4834.854981582876,
-                4904.5553996394865,
-                4974.441512229322,
-                5045.491312421904,
-                5130.717507368683,
-                5223.421347621407,
-                5317.079138212701,
-                5418.7071099135665,
-                5535.597836296701,
-                5667.909048600521,
-                5808.1872217746295,
-                5956.457881201861,
-                6127.4753815696895,
-                6314.274205611619,
-                6509.692128073985,
-                6736.107119503475,
-                7008.663641495503,
-                7312.530456313335,
-                7655.887319816534,
-                8100.341736238419,
-                8973.536714095795,
-                10144.613928413162,
-                11315.69114273053,
-                12486.768357047898,
-                13657.845571365266,
-                14828.922785682633,
-                16000])
-
-        fdiff = np.diff(mel_f)
-        ramps = np.subtract.outer(mel_f, fftfreqs)
-
-        for i in range(n_mels):
-            # lower and upper slopes for all bins
-            lower = -ramps[i] / fdiff[i]
-            upper = ramps[i+2] / fdiff[i+1]
-
-            # .. then intersect them with each other and zero
-            weights[i] = np.maximum(0, np.minimum(lower, upper))
-
-        if norm == 1:
-            # Slaney-style mel is scaled to be approx constant energy per channel
-            enorm = 2.0 / (mel_f[2:n_mels+2] - mel_f[:n_mels])
-            weights *= enorm[:, np.newaxis]
-
-        # Only check weights if f_mel[0] is positive
-        if not np.all((mel_f[:-2] == 0) | (weights.max(axis=1) > 0)):
-            # This means we have an empty channel somewhere
-            warnings.warn('Empty filters detected in mel frequency basis. '
-                        'Some channels will produce empty responses. '
-                        'Try increasing your sampling rate (and fmax) or '
-                        'reducing n_mels.')
-
-        return weights
-
 
     def __getitem__(self, idx: int):
         wav_path, ebird_code = self.file_list[idx]
@@ -570,17 +327,7 @@ class SpectrogramDataset(data.Dataset):
             else:
                 y = y.astype(np.float32)
 
-        n_fft = self.melspectrogram_parameters["n_fft"]
-        if self.filterbank is not None: pass
-        else:
-            self.filterbank = self.mel(sr, n_fft,
-                self.melspectrogram_parameters["n_mels"], 
-                self.melspectrogram_parameters["fmin"],
-                self.melspectrogram_parameters["fmax"])
-
-        power = 2.0
-        S = np.abs(librosa.stft(y, n_fft=n_fft))**power
-        melspec = np.dot(self.filterbank, S)
+        melspec = librosa.feature.melspectrogram(y, sr=sr, **self.melspectrogram_parameters)
         melspec = librosa.power_to_db(melspec).astype(np.float32)
 
         if self.spectrogram_transforms:
@@ -606,8 +353,8 @@ def get_loaders_for_training(
     train_file_list: tp.List[str], val_file_list: tp.List[str], bird_code: tp.Dict
     ):
     # # make dataset
-    train_dataset = SpectrogramDataset(train_file_list, bird_code, train=True, **args_dataset)
-    val_dataset = SpectrogramDataset(val_file_list, bird_code, train=False, **args_dataset)
+    train_dataset = SpectrogramDataset(train_file_list, bird_code, **args_dataset)
+    val_dataset = SpectrogramDataset(val_file_list, bird_code, **args_dataset)
     # # make dataloader
     train_loader = data.DataLoader(train_dataset, **args_loader["train"])
     val_loader = data.DataLoader(val_dataset, **args_loader["val"])
@@ -636,6 +383,7 @@ def train_loop(
     while not manager.stop_trigger:
         model.train()
         for batch_idx, (data, target) in enumerate(train_loader):
+            data, target = mixup_data(data, target, alpha=1, use_cuda=True)
             with manager.run_iteration():
                 data, target = data.to(device), target.to(device)
                 optimizer.zero_grad()
@@ -732,7 +480,11 @@ def f1_loss(y_true: torch.Tensor, y_pred: torch.Tensor, is_training=False, thres
             label_string = "nocall"
         else:
             labels_str_list = list(map(lambda x: INV_BIRD_CODE[x], labels))
+            if(len(labels) > 1 and 'nocall' in labels_str_list):
+                labels_str_list.remove('nocall')
+
             label_string = " ".join(labels_str_list)
+            
         true = INV_BIRD_CODE[true.detach().cpu().numpy().argmax()]
         preds.append(label_string)
         trues.append(true)
@@ -821,6 +573,26 @@ def micro_f1_similarity(
     f1_similarity = 2 * true_pos / (2 * true_pos + false_neg + false_pos)
 
     return f1_similarity
+
+
+def mixup_data(x, y, alpha=1.0, use_cuda=True):
+    '''Compute the mixup data. Return mixed inputs, pairs of targets, and lambda'''
+    if alpha > 0.:
+        lam = np.random.beta(alpha, alpha)
+    else:
+        lam = 1.
+    batch_size = x.size()[0]
+    if use_cuda:
+        index = torch.randperm(batch_size).cuda()
+    else:
+        index = torch.randperm(batch_size)
+#     lam = max(lam, 1 - lam)
+    mixed_x = lam * x + (1 - lam) * x[index,:]
+    mixed_y = lam * y + (1 - lam) * y[index]
+    return mixed_x, mixed_y
+
+def mixup_criterion(y_a, y_b, lam):
+    return lambda criterion, pred: lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 if __name__ == '__main__':
     train()

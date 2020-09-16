@@ -1,4 +1,4 @@
-ROOT : "../../../"
+ROOT : "../../"
 INPUT_ROOT : "input"
 RAW_DATA : "birdsong-recognition"
 TRAIN_AUDIO_DIR : "train_audio"
@@ -8,8 +8,8 @@ TEST_AUDIO_DIR : "test_audio"
 globals:
   seed: 1213
   device: cuda
-  num_epochs: 1
-  output_dir: ../output/test_baseline_1epoch/
+  num_epochs: 70
+  output_dir: ../output/bs43_70epoch_nocall/
   use_fold: 0
   target_sr: 32000
 
@@ -18,9 +18,8 @@ dataset:
   params:
     img_size: 224
     melspectrogram_parameters:
-      n_fft: 2048
       n_mels: 128
-      fmin: 200
+      fmin: 20
       fmax: 16000
     
 split:
@@ -32,12 +31,12 @@ split:
 
 loader:
   train:
-    batch_size: 20
+    batch_size: 43
     shuffle: True
     pin_memory: True
     drop_last: True
   val:
-    batch_size: 40
+    batch_size: 43
     shuffle: False
     pin_memory: True
     drop_last: False
@@ -46,7 +45,7 @@ model:
   name: resnest50_fast_1s1x64d
   params:
     pretrained: True
-    n_classes: 264
+    n_classes: 265
 
 loss:
   name: BCEWithLogitsLoss
@@ -115,5 +114,5 @@ BIRD_CODE : {
   'whcspa': 245, 'whfibi': 246, 'whtspa': 247, 'whtswi': 248, 'wilfly': 249,
   'wilsni1': 250, 'wiltur': 251, 'winwre3': 252, 'wlswar': 253, 'wooduc': 254,
   'wooscj2': 255, 'woothr': 256, 'y00475': 257, 'yebfly': 258, 'yebsap': 259,
-  'yehbla': 260, 'yelwar': 261, 'yerwar': 262, 'yetvir': 263
+  'yehbla': 260, 'yelwar': 261, 'yerwar': 262, 'yetvir': 263, 'nocall': 264
 }
